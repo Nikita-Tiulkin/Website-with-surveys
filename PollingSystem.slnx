@@ -1,5 +1,5 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/PollingSystem.Data/PollingSystem.Data.csproj" />
+  <Folder Name="/backend/">
+    <Project Path="backend/PollingSystem.Data/PollingSystem.Data.csproj" />
   </Folder>
 </Solution>

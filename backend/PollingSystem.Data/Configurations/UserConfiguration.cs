@@ -20,8 +20,8 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.PasswordHash).HasColumnName("password_hash").HasColumnType("text").IsRequired();
         builder.Property(x => x.Role).HasColumnName("role")
             .HasConversion(new ValueConverter<UserRole, string>(
-                value => value == UserRole.Admin ? "admin" : "user",
-                value => value == "admin" ? UserRole.Admin : UserRole.User))
+                value => ToDatabase(value),
+                value => FromDatabase(value)))
             .HasMaxLength(16).IsRequired().HasDefaultValue(UserRole.User).HasSentinel(UserRole.User);
         builder.Property(x => x.CreatedAt).HasColumnName("created_at")
             .HasColumnType("timestamp with time zone").IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -31,5 +31,27 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_surveys_author");
         builder.HasMany(x => x.SurveyResponses).WithOne(x => x.User).HasForeignKey(x => x.UserId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_survey_responses_user");
+    }
+
+    public static string ToDatabase(UserRole role)
+    {
+        return role switch
+        {
+            UserRole.User => "user",
+            UserRole.Admin => "admin",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(role), role, "Unknown user role")
+        };
+    }
+
+    public static UserRole FromDatabase(string value)
+    {
+        return value switch
+        {
+            "user" => UserRole.User,
+            "admin" => UserRole.Admin,
+            _ => throw new InvalidOperationException(
+                $"Unknown user role: {value}")
+        };
     }
 }
