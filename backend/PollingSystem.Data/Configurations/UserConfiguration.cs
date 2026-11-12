@@ -15,6 +15,7 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.HasKey(x => x.Id).HasName("pk_users");
         builder.Property(x => x.Id).HasColumnName("id").HasColumnType("uuid").IsRequired();
+        builder.Property(x => x.Login).HasColumnName("login").HasMaxLength(50).IsRequired();
         builder.Property(x => x.Email).HasColumnName("email").HasMaxLength(256).IsRequired();
         builder.Property(x => x.NormalizedEmail).HasColumnName("normalized_email").HasMaxLength(256).IsRequired();
         builder.Property(x => x.PasswordHash).HasColumnName("password_hash").HasColumnType("text").IsRequired();
@@ -26,6 +27,7 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.CreatedAt).HasColumnName("created_at")
             .HasColumnType("timestamp with time zone").IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
         builder.HasIndex(x => x.NormalizedEmail).IsUnique().HasDatabaseName("ux_users_normalized_email");
+        builder.HasIndex(x => x.Login).IsUnique().HasDatabaseName("ux_users_login");
 
         builder.HasMany(x => x.Surveys).WithOne(x => x.Author).HasForeignKey(x => x.AuthorId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_surveys_author");
