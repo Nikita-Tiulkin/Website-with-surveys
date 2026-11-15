@@ -7,9 +7,9 @@ public class SurveyDto
     public string Title { get; set; } = string.Empty;
     public Guid CreatorId { get; set; }
     public string? Description { get; set; }
+    public bool HasVoted { get; set; }
     public List<SurveyQuestionDto> Questions { get; set; } = new();
 }
-
 public class SurveyQuestionDto
 {
     public Guid Id { get; set; }

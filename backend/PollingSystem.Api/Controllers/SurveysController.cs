@@ -48,6 +48,7 @@ public class SurveysController : ControllerBase
         return Ok(surveys.Select(MapSurvey));
     }
 
+    [Authorize]
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(
         Guid id,
@@ -60,7 +61,17 @@ public class SurveysController : ControllerBase
             return NotFound(new { error = "Опрос не найден." });
         }
 
-        return Ok(MapSurvey(survey));
+        string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userId, out Guid currentUserId))
+        {
+            return Unauthorized(new { error = "Необходимо авторизоваться." });
+        }
+
+        SurveyDto result = MapSurvey(survey);
+        result.HasVoted = await _surveys.HasUserVotedAsync(
+            id, currentUserId, cancellationToken);
+
+        return Ok(result);
     }
 
     [Authorize]

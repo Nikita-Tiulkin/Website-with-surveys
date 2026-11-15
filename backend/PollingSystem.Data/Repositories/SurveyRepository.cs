@@ -301,4 +301,16 @@ public sealed class SurveyRepository(AppDbContext context) : ISurveyRepository
             Questions = questionStats
         };
     }
+
+    public Task<bool> HasUserVotedAsync(
+        Guid surveyId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        return context.SurveyResponses
+            .AsNoTracking()
+            .AnyAsync(
+                response => response.SurveyId == surveyId && response.UserId == userId,
+                cancellationToken);
+    }
 }

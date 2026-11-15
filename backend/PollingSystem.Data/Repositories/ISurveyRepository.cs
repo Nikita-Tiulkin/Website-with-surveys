@@ -30,4 +30,10 @@ public interface ISurveyRepository
     Task<SurveyStatsDto?> GetStatsAsync(
         Guid surveyId,
         CancellationToken cancellationToken = default);
+
+    Task<bool> HasUserVotedAsync(
+        Guid surveyId,
+        Guid userId,
+        CancellationToken cancellationToken = default);
 }
+
