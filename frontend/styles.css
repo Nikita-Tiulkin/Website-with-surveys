@@ -43,7 +43,6 @@ input::placeholder { color: #888; }
 .button-wide { width: 100%; margin-top: 18px; }
 .auth-switch { margin: 18px 0 0; text-align: center; font-size: 14px; }
 .text-button { padding: 0; border: 0; color: var(--accent); background: transparent; text-decoration: underline; }
-.demo-note { margin: 20px 0 0; color: var(--muted); text-align: center; font-size: 12px; }
 
 /* Основная страница */
 .app-layout { min-height: 100vh; }

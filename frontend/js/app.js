@@ -38,7 +38,7 @@ function renderAuth() {
         <form id="auth-form" class="form-stack">
           ${isRegister ? `
             <label class="field-label" for="auth-name">Имя</label>
-            <input id="auth-name" name="name" type="text" placeholder="Ваше имя" maxlength="60" required>
+            <input id="auth-name" name="name" type="text" placeholder="Ваше имя" maxlength="50" required>
           ` : ''}
           <label class="field-label" for="auth-email">Электронная почта</label>
           <input id="auth-email" name="email" type="email" placeholder="name@example.com" autocomplete="email" required>
@@ -49,7 +49,6 @@ function renderAuth() {
         <p class="auth-switch">${isRegister ? 'Уже есть аккаунт?' : 'Нет аккаунта?'}
           <button class="text-button" data-action="switch-auth">${isRegister ? 'Войти' : 'Зарегистрироваться'}</button>
         </p>
-        <p class="demo-note">Данные сохраняются только в этом браузере.</p>
       </section>
     </main>`;
 }
@@ -87,10 +86,7 @@ function pollCard(poll) {
 }
 
 async function renderPollList() {
-  const allPolls = await api.getPolls();
-  const polls = currentView === 'mine'
-    ? allPolls.filter((poll) => poll.creatorId === currentUser.id)
-    : allPolls;
+  const polls = await api.getPolls(currentView === 'mine');
   const title = currentView === 'mine' ? 'Мои опросы' : 'Все опросы';
 
   renderShell(`
@@ -376,4 +372,7 @@ async function start() {
   }
 }
 
-start();
+start().catch((error) => {
+  renderAuth();
+  showToast(error.message || 'Не удалось подключиться к серверу.', true);
+});
