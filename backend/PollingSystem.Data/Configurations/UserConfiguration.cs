@@ -1,8 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PollingSystem.Data.Entities;
-using PollingSystem.Data.Enums;
 
 namespace PollingSystem.Data.Configurations;
 
@@ -10,8 +8,7 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public void Configure(EntityTypeBuilder<User> builder)
     {
-        builder.ToTable("users", table =>
-            table.HasCheckConstraint("ck_users_role", "role IN ('user', 'admin')"));
+        builder.ToTable("users");
 
         builder.HasKey(x => x.Id).HasName("pk_users");
         builder.Property(x => x.Id).HasColumnName("id").HasColumnType("uuid").IsRequired();
@@ -19,11 +16,6 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.Email).HasColumnName("email").HasMaxLength(256).IsRequired();
         builder.Property(x => x.NormalizedEmail).HasColumnName("normalized_email").HasMaxLength(256).IsRequired();
         builder.Property(x => x.PasswordHash).HasColumnName("password_hash").HasColumnType("text").IsRequired();
-        builder.Property(x => x.Role).HasColumnName("role")
-            .HasConversion(new ValueConverter<UserRole, string>(
-                value => ToDatabase(value),
-                value => FromDatabase(value)))
-            .HasMaxLength(16).IsRequired().HasDefaultValue(UserRole.User).HasSentinel(UserRole.User);
         builder.Property(x => x.CreatedAt).HasColumnName("created_at")
             .HasColumnType("timestamp with time zone").IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
         builder.HasIndex(x => x.NormalizedEmail).IsUnique().HasDatabaseName("ux_users_normalized_email");
@@ -35,25 +27,4 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_survey_responses_user");
     }
 
-    public static string ToDatabase(UserRole role)
-    {
-        return role switch
-        {
-            UserRole.User => "user",
-            UserRole.Admin => "admin",
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(role), role, "Unknown user role")
-        };
-    }
-
-    public static UserRole FromDatabase(string value)
-    {
-        return value switch
-        {
-            "user" => UserRole.User,
-            "admin" => UserRole.Admin,
-            _ => throw new InvalidOperationException(
-                $"Unknown user role: {value}")
-        };
-    }
 }

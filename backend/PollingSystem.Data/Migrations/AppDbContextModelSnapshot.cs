@@ -17,7 +17,7 @@ namespace PollingSystem.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.31")
+                .HasAnnotation("ProductVersion", "8.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -302,14 +302,6 @@ namespace PollingSystem.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("password_hash");
 
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)")
-                        .HasDefaultValue("user")
-                        .HasColumnName("role");
-
                     b.HasKey("Id")
                         .HasName("pk_users");
 
@@ -321,10 +313,7 @@ namespace PollingSystem.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_users_normalized_email");
 
-                    b.ToTable("users", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_users_role", "role IN ('user', 'admin')");
-                        });
+                    b.ToTable("users", (string)null);
                 });
 
             modelBuilder.Entity("PollingSystem.Data.Entities.Answer", b =>

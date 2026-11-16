@@ -2,7 +2,6 @@
 using Microsoft.EntityFrameworkCore;
 using PollingSystem.Data.DTOs;
 using PollingSystem.Data.Entities;
-using PollingSystem.Data.Enums;
 
 namespace PollingSystem.Data.Repositories;
 
@@ -22,8 +21,7 @@ public sealed class UserRepository(AppDbContext context) : IUserRepository
             Login = dto.Login.Trim(),
             Email = dto.Email.Trim(),
             NormalizedEmail = dto.Email.Trim().ToUpperInvariant(),
-            PasswordHash = dto.PasswordHash,
-            Role = UserRole.User
+            PasswordHash = dto.PasswordHash
         };
 
         await context.Users.AddAsync(user, cancellationToken);
