@@ -4,10 +4,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PollingSystem.Api.Models;
+using PollingSystem.Api.Services.Interfaces;
 using PollingSystem.Data.DTOs;
 using PollingSystem.Data.Entities;
-using PollingSystem.Data.Enums;
-using PollingSystem.Data.Repositories;
 
 namespace PollingSystem.Api.Controllers;
 
@@ -15,9 +14,9 @@ namespace PollingSystem.Api.Controllers;
 [Route("api/surveys")]
 public class SurveysController : ControllerBase
 {
-    private readonly ISurveyRepository _surveys;
+    private readonly ISurveyService _surveys;
 
-    public SurveysController(ISurveyRepository surveys)
+    public SurveysController(ISurveyService surveys)
     {
         _surveys = surveys;
     }
@@ -27,25 +26,28 @@ public class SurveysController : ControllerBase
         [FromQuery] bool mine = false,
         CancellationToken cancellationToken = default)
     {
-        List<Survey> surveys;
+        Guid? authorId = null;
 
         if (mine)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            if (!Guid.TryParse(userId, out Guid authorId))
+            if (!Guid.TryParse(userId, out Guid parsedAuthorId))
             {
-                return Unauthorized(new { error = "Необходимо авторизоваться." });
+                return Unauthorized(new
+                {
+                    error = "Необходимо авторизоваться."
+                });
             }
 
-            surveys = await _surveys.GetByAuthorIdAsync(authorId, cancellationToken);
-        }
-        else
-        {
-            surveys = await _surveys.GetAllAsync(cancellationToken);
+            authorId = parsedAuthorId;
         }
 
-        return Ok(surveys.Select(MapSurvey));
+        List<SurveyDto> surveys = await _surveys.GetAllAsync(
+            authorId,
+            cancellationToken);
+
+        return Ok(surveys);
     }
 
     [Authorize]
@@ -54,24 +56,30 @@ public class SurveysController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        Survey? survey = await _surveys.GetByIdAsync(id, cancellationToken);
+        string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!Guid.TryParse(userId, out Guid currentUserId))
+        {
+            return Unauthorized(new
+            {
+                error = "Необходимо авторизоваться."
+            });
+        }
+
+        SurveyDto? survey = await _surveys.GetByIdAsync(
+            id,
+            currentUserId,
+            cancellationToken);
 
         if (survey is null)
         {
-            return NotFound(new { error = "Опрос не найден." });
+            return NotFound(new
+            {
+                error = "Опрос не найден."
+            });
         }
 
-        string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(userId, out Guid currentUserId))
-        {
-            return Unauthorized(new { error = "Необходимо авторизоваться." });
-        }
-
-        SurveyDto result = MapSurvey(survey);
-        result.HasVoted = await _surveys.HasUserVotedAsync(
-            id, currentUserId, cancellationToken);
-
-        return Ok(result);
+        return Ok(survey);
     }
 
     [Authorize]
@@ -84,71 +92,31 @@ public class SurveysController : ControllerBase
 
         if (!Guid.TryParse(userId, out Guid authorId))
         {
-            return Unauthorized(new { error = "Не удалось определить пользователя." });
+            return Unauthorized(new
+            {
+                error = "Не удалось определить пользователя."
+            });
         }
 
-        if (request.Questions is null || request.Questions.Count == 0)
+        try
         {
-            return BadRequest(new { error = "Опрос должен содержать хотя бы один вопрос." });
+            SurveyDto createdSurvey = await _surveys.CreateAsync(
+                authorId,
+                request,
+                cancellationToken);
+
+            return CreatedAtAction(
+                nameof(GetById),
+                new { id = createdSurvey.Id },
+                createdSurvey);
         }
-
-        List<QuestionType> questionTypes = new();
-
-        foreach (CreateQuestionRequest question in request.Questions)
+        catch (InvalidOperationException exception)
         {
-            if (question.Type.Equals("single", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new
             {
-                questionTypes.Add(QuestionType.SingleChoice);
-            }
-            else if (question.Type.Equals("multiple", StringComparison.OrdinalIgnoreCase))
-            {
-                questionTypes.Add(QuestionType.MultipleChoice);
-            }
-            else if (question.Type.Equals("text", StringComparison.OrdinalIgnoreCase))
-            {
-                questionTypes.Add(QuestionType.Text);
-            }
-            else
-            {
-                return BadRequest(new { error = $"Неизвестный тип вопроса: {question.Type}" });
-            }
-
-            if (questionTypes[^1] != QuestionType.Text &&
-                (question.Options is null || question.Options.Count < 2))
-            {
-                return BadRequest(new
-                {
-                    error = "В вопросах с вариантами ответа должно быть не менее двух вариантов."
-                });
-            }
+                error = exception.Message
+            });
         }
-
-        CreateSurveyDto dto = new CreateSurveyDto
-        {
-            AuthorId = authorId,
-            Title = request.Title.Trim(),
-            Description = request.Description?.Trim(),
-            EndsAt = request.EndsAt,
-            Questions = request.Questions.Select((question, index) =>
-                new CreateQuestionDto
-                {
-                    Title = question.Title.Trim(),
-                    Type = questionTypes[index],
-                    IsRequired = question.IsRequired,
-                    Options = question.Options?.Select(option =>
-                        new CreateQuestionOptionDto
-                        {
-                            Text = option.Text.Trim()
-                        }).ToList() ?? new List<CreateQuestionOptionDto>()
-                }).ToList()
-        };
-
-        Survey createdSurvey = await _surveys.AddAsync(dto, cancellationToken);
-
-        return CreatedAtAction(
-            nameof(GetById),
-            new { id = createdSurvey.Id },
-            MapSurvey(createdSurvey));
     }
 
     [Authorize]
@@ -162,12 +130,15 @@ public class SurveysController : ControllerBase
 
         if (!Guid.TryParse(userId, out Guid voterId))
         {
-            return Unauthorized(new { error = "Не удалось определить пользователя." });
+            return Unauthorized(new
+            {
+                error = "Не удалось определить пользователя."
+            });
         }
 
         try
         {
-            SurveyResponse response = await _surveys.AddResponseAsync(
+            SurveyResponse response = await _surveys.VoteAsync(
                 id,
                 voterId,
                 request,
@@ -181,15 +152,24 @@ public class SurveysController : ControllerBase
         }
         catch (KeyNotFoundException exception)
         {
-            return NotFound(new { error = exception.Message });
+            return NotFound(new
+            {
+                error = exception.Message
+            });
         }
         catch (InvalidOperationException exception)
         {
-            return BadRequest(new { error = exception.Message });
+            return BadRequest(new
+            {
+                error = exception.Message
+            });
         }
         catch (DbUpdateException)
         {
-            return Conflict(new { error = "Вы уже голосовали в этом опросе." });
+            return Conflict(new
+            {
+                error = "Вы уже голосовали в этом опросе."
+            });
         }
     }
 
@@ -198,50 +178,18 @@ public class SurveysController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        SurveyStatsDto? stats = await _surveys.GetStatsAsync(id, cancellationToken);
+        SurveyStatsDto? stats = await _surveys.GetStatsAsync(
+            id,
+            cancellationToken);
 
         if (stats is null)
         {
-            return NotFound(new { error = "Опрос не найден." });
+            return NotFound(new
+            {
+                error = "Опрос не найден."
+            });
         }
 
         return Ok(stats);
-    }
-
-    private static SurveyDto MapSurvey(Survey survey)
-    {
-        return new SurveyDto
-        {
-            Id = survey.Id,
-            Title = survey.Title,
-            CreatorId = survey.AuthorId,
-            Description = survey.Description,
-            Questions = survey.Questions
-                .OrderBy(question => question.Position)
-                .Select(question => new SurveyQuestionDto
-                {
-                    Id = question.Id,
-                    Title = question.Title,
-                    Type = MapQuestionType(question.Type),
-                    Options = question.Options
-                        .OrderBy(option => option.Position)
-                        .Select(option => new SurveyOptionDto
-                        {
-                            Id = option.Id,
-                            Text = option.Text
-                        }).ToList()
-                }).ToList()
-        };
-    }
-
-    private static string MapQuestionType(QuestionType type)
-    {
-        return type switch
-        {
-            QuestionType.SingleChoice => "single",
-            QuestionType.MultipleChoice => "multiple",
-            QuestionType.Text => "text",
-            _ => type.ToString()
-        };
     }
 }

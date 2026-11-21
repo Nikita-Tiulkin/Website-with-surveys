@@ -21,10 +21,8 @@ public interface ISurveyRepository
         Guid authorId,
         CancellationToken cancellationToken = default);
 
-    Task<SurveyResponse> AddResponseAsync(
-        Guid surveyId,
-        Guid userId,
-        SubmitVoteDto dto,
+    Task AddResponseAsync(
+        SurveyResponse response,
         CancellationToken cancellationToken = default);
 
     Task<SurveyStatsDto?> GetStatsAsync(
@@ -36,4 +34,3 @@ public interface ISurveyRepository
         Guid userId,
         CancellationToken cancellationToken = default);
 }
-

@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using PollingSystem.Api.Services;
+using PollingSystem.Api.Services.Interfaces;
 using PollingSystem.Data;
 using PollingSystem.Data.Entities;
 using PollingSystem.Data.Repositories;
@@ -20,7 +22,8 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
 {
-    throw new InvalidOperationException("JWT_SECRET должен содержать минимум 32 символа.");
+    throw new InvalidOperationException(
+        "JWT_SECRET должен содержать минимум 32 символа.");
 }
 
 builder.Services.AddControllers();
@@ -32,6 +35,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ISurveyRepository, SurveyRepository>();
+
+builder.Services.AddScoped<ISurveyService, SurveyService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
@@ -72,7 +78,9 @@ var app = builder.Build();
 
 using (IServiceScope scope = app.Services.CreateScope())
 {
-    AppDbContext dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    AppDbContext dbContext =
+        scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
     await dbContext.Database.MigrateAsync();
 }
 
