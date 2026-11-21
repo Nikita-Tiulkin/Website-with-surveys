@@ -30,10 +30,12 @@ public class AuthController : ControllerBase
 
         if (!result.IsSuccess)
         {
-            return Conflict(new
+            if (result.IsConflict)
             {
-                error = result.Error
-            });
+                return Conflict(new { error = result.Error });
+            }
+
+            return BadRequest(new { error = result.Error });
         }
 
         return StatusCode(
@@ -52,10 +54,7 @@ public class AuthController : ControllerBase
 
         if (!result.IsSuccess)
         {
-            return Unauthorized(new
-            {
-                error = result.Error
-            });
+            return Unauthorized(new { error = result.Error });
         }
 
         return Ok(result.Response);

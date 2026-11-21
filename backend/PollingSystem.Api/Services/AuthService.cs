@@ -1,3 +1,4 @@
+
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -173,11 +174,7 @@ public class AuthService : IAuthService
 
             new Claim(
                 ClaimTypes.Email,
-                user.Email),
-
-            new Claim(
-                ClaimTypes.Role,
-                user.Role.ToString())
+                user.Email)
         };
 
         SymmetricSecurityKey key = new SymmetricSecurityKey(
