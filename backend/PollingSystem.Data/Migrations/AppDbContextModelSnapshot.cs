@@ -231,6 +231,45 @@ namespace PollingSystem.Data.Migrations
                         });
                 });
 
+
+            modelBuilder.Entity("PollingSystem.Data.Entities.ProcessedEvent", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<DateTime>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.HasKey("EventId")
+                        .HasName("pk_processed_events");
+
+                    b.ToTable("processed_events", (string)null);
+                });
+
+            modelBuilder.Entity("PollingSystem.Data.Entities.WorkerLease", b =>
+                {
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.HasKey("Name")
+                        .HasName("pk_worker_leases");
+
+                    b.ToTable("worker_leases", (string)null);
+                });
+
             modelBuilder.Entity("PollingSystem.Data.Entities.SurveyResponse", b =>
                 {
                     b.Property<Guid>("Id")

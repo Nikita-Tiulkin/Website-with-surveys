@@ -13,16 +13,53 @@ services:
       timeout: 5s
       retries: 10
 
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: polling
+      RABBITMQ_DEFAULT_PASS: polling
+    ports:
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: .
       dockerfile: Dockerfile
+      target: api
     depends_on:
       db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     environment:
       DATABASE_URL: "Host=db;Port=5432;Database=polling;Username=polling;Password=postgres"
       JWT_SECRET: "replace_this_with_a_random_secret_at_least_32_characters"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: polling
+      RabbitMq__Password: polling
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "Host=db;Port=5432;Database=polling;Username=polling;Password=postgres"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: polling
+      RabbitMq__Password: polling
 
   frontend:
     image: nginx:alpine

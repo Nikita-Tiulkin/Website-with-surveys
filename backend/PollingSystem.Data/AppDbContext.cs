@@ -12,6 +12,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SurveyResponse> SurveyResponses => Set<SurveyResponse>();
     public DbSet<Answer> Answers => Set<Answer>();
     public DbSet<AnswerSelectedOption> AnswerSelectedOptions => Set<AnswerSelectedOption>();
+    public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
+    public DbSet<WorkerLease> WorkerLeases => Set<WorkerLease>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

@@ -8,6 +8,9 @@ let currentView = 'all';
 let selectedPollId = null;
 let authMode = 'login';
 let toastTimer = null;
+let hubConnection = null;
+let pollListRefreshTimer = null;
+const handledRealtimeEvents = new Set();
 
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -77,10 +80,61 @@ function renderShell(content) {
     </div>`;
 }
 
+function formatPollEndTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function isPollClosed(poll) {
+  if (poll.status === 'closed') return true;
+  if (!poll.endsAt) return false;
+
+  const endsAt = new Date(poll.endsAt).getTime();
+  return Number.isFinite(endsAt) && endsAt <= Date.now();
+}
+
+function clearPollListRefreshTimer() {
+  clearTimeout(pollListRefreshTimer);
+  pollListRefreshTimer = null;
+}
+
+function scheduleNextPollEnd(polls) {
+  clearPollListRefreshTimer();
+
+  const now = Date.now();
+  const nextEnd = polls
+    .filter((poll) => poll.status !== 'closed' && poll.endsAt)
+    .map((poll) => new Date(poll.endsAt).getTime())
+    .filter((time) => Number.isFinite(time) && time > now)
+    .sort((a, b) => a - b)[0];
+
+  if (!nextEnd) return;
+
+  const delay = Math.min(nextEnd - now + 100, 2147483647);
+  pollListRefreshTimer = setTimeout(() => {
+    if (!selectedPollId && (currentView === 'all' || currentView === 'mine')) {
+      renderCurrentView();
+    }
+  }, delay);
+}
+
 function pollCard(poll) {
+  const closed = isPollClosed(poll);
+  const endTime = poll.endsAt ? formatPollEndTime(poll.endsAt) : '';
+
   return `
     <article class="poll-card">
       <h2>${escapeHtml(poll.title)}</h2>
+      ${closed ? '<p class="poll-status">Опрос закрыт</p>' : ''}
+      ${endTime ? `<p class="poll-end-time">Окончание: ${escapeHtml(endTime)}</p>` : ''}
       <button class="button button-secondary" data-action="open-poll" data-id="${escapeHtml(poll.id)}">Открыть</button>
     </article>`;
 }
@@ -93,6 +147,8 @@ async function renderPollList() {
     <div class="page-heading"><h1>${title}</h1></div>
     ${polls.length ? `<section class="poll-grid">${polls.map(pollCard).join('')}</section>` : ''}
   `);
+
+  scheduleNextPollEnd(polls);
 }
 
 function questionEditor(index) {
@@ -132,6 +188,9 @@ function renderCreate() {
       <section class="form-panel">
         <label class="field-label" for="poll-title">Название опроса</label>
         <input id="poll-title" name="title" type="text" maxlength="100" placeholder="Введите название опроса" required>
+        <label class="field-label" for="poll-ends-at">Окончание опроса (необязательно)</label>
+        <input id="poll-ends-at" name="endsAt" type="datetime-local">
+        <p class="form-hint">После указанного времени опрос автоматически закроется.</p>
       </section>
       <div class="section-heading">
         <h2>Вопросы</h2>
@@ -149,7 +208,8 @@ function renderCreate() {
 async function renderPollDetails(pollId) {
   const poll = await api.getPoll(pollId);
   const stats = await api.getPollStats(pollId);
-  const canVote = !poll.hasVoted;
+  const isClosed = isPollClosed(poll);
+  const canVote = !poll.hasVoted && !isClosed;
 
   const questionsHtml = poll.questions.map((question, index) => {
     const questionStats = stats.questions.find((item) => item.id === question.id);
@@ -186,7 +246,10 @@ async function renderPollDetails(pollId) {
   renderShell(`
     <button class="back-button" data-action="back">К опросам</button>
     <div class="detail-heading">
-      <h1>${escapeHtml(poll.title)}</h1>
+      <div>
+        <h1>${escapeHtml(poll.title)}</h1>
+        ${isClosed ? '<p class="poll-status">Опрос закрыт</p>' : ''}
+      </div>
       <div class="detail-total"><strong>${stats.totalVotes}</strong><span>голосов</span></div>
     </div>
     ${canVote
@@ -201,8 +264,10 @@ async function renderPollDetails(pollId) {
 async function renderCurrentView() {
   try {
     if (selectedPollId) {
+      clearPollListRefreshTimer();
       await renderPollDetails(selectedPollId);
     } else if (currentView === 'create') {
+      clearPollListRefreshTimer();
       renderCreate();
     } else {
       await renderPollList();
@@ -212,6 +277,64 @@ async function renderCurrentView() {
     selectedPollId = null;
     currentView = 'all';
     await renderPollList();
+  }
+}
+
+async function connectRealtime() {
+  if (!currentUser || !window.signalR) return;
+
+  if (hubConnection) {
+    await hubConnection.stop().catch(() => {});
+  }
+
+  hubConnection = new window.signalR.HubConnectionBuilder()
+    .withUrl('/hubs/surveys', {
+      accessTokenFactory: () => localStorage.getItem('poll-service-token') || ''
+    })
+    .withAutomaticReconnect()
+    .build();
+
+  hubConnection.on('SurveyChanged', async (event) => {
+    if (event.eventId && handledRealtimeEvents.has(event.eventId)) return;
+    if (handledRealtimeEvents.size > 1000) handledRealtimeEvents.clear();
+    if (event.eventId) handledRealtimeEvents.add(event.eventId);
+
+    const isOwnAction = event.userId && event.userId === currentUser?.id;
+    const isPollListVisible = !selectedPollId &&
+      (currentView === 'all' || currentView === 'mine');
+    const shouldRefresh =
+      event.surveyId === selectedPollId ||
+      (isPollListVisible &&
+        (event.eventType === 'SurveyCreated' || event.eventType === 'SurveyClosed'));
+
+    if (shouldRefresh) {
+      await renderCurrentView();
+    }
+
+    if (!isOwnAction) {
+      const surveyTitle = event.surveyTitle
+        ? ` «${event.surveyTitle}»`
+        : '';
+      const messages = {
+        SurveyCreated: `Появился новый опрос${surveyTitle}.`,
+        VoteSubmitted: `В опросе${surveyTitle} появился новый голос.`,
+        SurveyClosed: `Опрос${surveyTitle} закрыт.`
+      };
+      showToast(messages[event.eventType] || 'Данные опроса обновлены.');
+    }
+  });
+
+  try {
+    await hubConnection.start();
+  } catch (error) {
+    console.error('Не удалось подключить SignalR:', error);
+  }
+}
+
+async function disconnectRealtime() {
+  if (hubConnection) {
+    await hubConnection.stop().catch(() => {});
+    hubConnection = null;
   }
 }
 
@@ -263,6 +386,7 @@ app.addEventListener('click', async (event) => {
       authMode = authMode === 'login' ? 'register' : 'login';
       renderAuth();
     } else if (action === 'logout') {
+      await disconnectRealtime();
       await api.logout();
       currentUser = null;
       selectedPollId = null;
@@ -329,13 +453,16 @@ app.addEventListener('submit', async (event) => {
       currentView = 'all';
       selectedPollId = null;
       await renderCurrentView();
+      await connectRealtime();
       showToast(authMode === 'register' ? 'Аккаунт создан.' : 'Вы вошли в систему.');
     } else if (form.id === 'create-poll-form') {
       const title = form.elements.title.value.trim();
       if (!title) throw new Error('Укажите название опроса.');
 
+      const endsAtValue = form.elements.endsAt.value;
       const poll = await api.createPoll({
         title,
+        endsAt: endsAtValue ? new Date(endsAtValue).toISOString() : null,
         questions: getQuestionData(form)
       });
 
@@ -363,10 +490,18 @@ app.addEventListener('submit', async (event) => {
   }
 });
 
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && !selectedPollId &&
+      (currentView === 'all' || currentView === 'mine')) {
+    renderCurrentView();
+  }
+});
+
 async function start() {
   currentUser = await api.getCurrentUser();
   if (currentUser) {
     await renderCurrentView();
+    await connectRealtime();
   } else {
     renderAuth();
   }

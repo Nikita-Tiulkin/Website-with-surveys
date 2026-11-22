@@ -78,6 +78,7 @@ input::placeholder { color: #888; }
 .section-heading p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
 .add-question-button { margin-top: 2px; }
 .form-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
+.form-hint { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
 
 /* Голосование и результаты */
 .back-button { margin: 0 0 18px; padding: 0; border: 0; color: var(--accent); background: transparent; text-decoration: underline; }
@@ -124,4 +125,17 @@ input::placeholder { color: #888; }
   .detail-panel { padding: 0 13px; }
   .question-type-row { align-items: flex-start; flex-direction: column; gap: 5px; }
   .question-type { width: 100%; }
+}
+
+
+.poll-status {
+  margin: 0.5rem 0 0;
+  color: #c62828;
+  font-weight: 600;
+}
+
+.poll-end-time {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
 }

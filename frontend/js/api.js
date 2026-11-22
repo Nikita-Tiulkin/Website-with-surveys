@@ -112,9 +112,10 @@ export const api = {
     return request(`/surveys/${encodeURIComponent(pollId)}`);
   },
 
-  async createPoll({ title, questions }) {
+  async createPoll({ title, questions, endsAt }) {
     const requestBody = {
       title,
+      endsAt: endsAt || null,
       questions: questions.map((question) => ({
         title: question.title,
         type: question.type,

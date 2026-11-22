@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PollingSystem.Data\PollingSystem.Data.csproj" />
+    <ProjectReference Include="..\PollingSystem.Messaging\PollingSystem.Messaging.csproj" />
   </ItemGroup>
 
 </Project>

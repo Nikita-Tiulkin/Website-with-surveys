@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/backend/">
     <Project Path="backend/PollingSystem.Data/PollingSystem.Data.csproj" />
+    <Project Path="backend/PollingSystem.Api/PollingSystem.Api.csproj" />
+    <Project Path="backend/PollingSystem.Messaging/PollingSystem.Messaging.csproj" />
+    <Project Path="backend/PollingSystem.Worker/PollingSystem.Worker.csproj" />
   </Folder>
 </Solution>

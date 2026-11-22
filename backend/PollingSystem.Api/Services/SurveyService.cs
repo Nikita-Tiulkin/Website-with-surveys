@@ -7,16 +7,23 @@ using PollingSystem.Data.DTOs;
 using PollingSystem.Data.Entities;
 using PollingSystem.Data.Enums;
 using PollingSystem.Data.Repositories;
+using PollingSystem.Messaging;
+using PollingSystem.Messaging.Events;
+using PollingSystem.Messaging.Queues;
 
 namespace PollingSystem.Api.Services;
 
 public sealed class SurveyService : ISurveyService
 {
     private readonly ISurveyRepository _surveys;
+    private readonly IEventPublisher _eventPublisher;
 
-    public SurveyService(ISurveyRepository surveys)
+    public SurveyService(
+        ISurveyRepository surveys,
+        IEventPublisher eventPublisher)
     {
         _surveys = surveys;
+        _eventPublisher = eventPublisher;
     }
 
     public async Task<List<SurveyDto>> GetAllAsync(
@@ -72,6 +79,12 @@ public sealed class SurveyService : ISurveyService
         {
             throw new InvalidOperationException(
                 "Опрос должен содержать хотя бы один вопрос.");
+        }
+
+        if (request.EndsAt.HasValue && request.EndsAt.Value <= DateTime.UtcNow)
+        {
+            throw new InvalidOperationException(
+                "Дата окончания опроса должна быть в будущем.");
         }
 
         List<QuestionType> questionTypes = new();
@@ -135,6 +148,17 @@ public sealed class SurveyService : ISurveyService
 
         Survey createdSurvey = await _surveys.AddAsync(
             dto,
+            cancellationToken);
+
+        await _eventPublisher.PublishAsync(
+            QueueNames.SurveyEvents,
+            new SurveyEvent
+            {
+                EventType = SurveyEventTypes.Created,
+                SurveyId = createdSurvey.Id,
+                SurveyTitle = createdSurvey.Title,
+                UserId = authorId
+            },
             cancellationToken);
 
         return MapSurvey(createdSurvey);
@@ -321,6 +345,17 @@ public sealed class SurveyService : ISurveyService
                 "Вы уже голосовали в этом опросе.");
         }
 
+        await _eventPublisher.PublishAsync(
+            QueueNames.SurveyEvents,
+            new SurveyEvent
+            {
+                EventType = SurveyEventTypes.VoteSubmitted,
+                SurveyId = surveyId,
+                SurveyTitle = survey.Title,
+                UserId = userId
+            },
+            cancellationToken);
+
         return response;
     }
 
@@ -341,6 +376,8 @@ public sealed class SurveyService : ISurveyService
             Title = survey.Title,
             CreatorId = survey.AuthorId,
             Description = survey.Description,
+            Status = survey.Status.ToString().ToLowerInvariant(),
+            EndsAt = survey.EndsAt,
             Questions = survey.Questions
                 .OrderBy(question => question.Position)
                 .Select(question => new SurveyQuestionDto

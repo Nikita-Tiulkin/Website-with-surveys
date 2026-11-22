@@ -63,7 +63,7 @@ public sealed class SurveyRepository(AppDbContext context) : ISurveyRepository
     {
         return await context.Surveys
             .AsNoTracking()
-            .Where(survey => survey.Status == SurveyStatus.Active)
+            .Where(survey => survey.Status != SurveyStatus.Draft)
             .Include(survey => survey.Questions
                 .OrderBy(question => question.Position))
             .ThenInclude(question => question.Options
